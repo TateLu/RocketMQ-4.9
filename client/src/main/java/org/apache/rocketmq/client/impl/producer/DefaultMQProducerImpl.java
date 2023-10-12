@@ -146,6 +146,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.start(true);
     }
 
+    /**
+     * @param startFactory start a client instance which is a single instance
+     * */
     public void start(final boolean startFactory) throws MQClientException {
         switch (this.serviceState) {
             case CREATE_JUST:
@@ -164,10 +167,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                  */
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
                 /**
-                 * 注册producer，其实就是往producerTable map里仍key-value
-                 * private final ConcurrentMap<String, MQProducerInner> producerTable =
-                 * new ConcurrentHashMap<String, MQProducerInner>();
-                 * producerTable.putIfAbsent("my-producer", DefaultMQProducerImpl);
+                 * register producer to producerGroup
                  */
                 boolean registerOK = mQClientFactory.registerProducer(this.defaultMQProducer.getProducerGroup(), this);
                 if (!registerOK) {
@@ -176,9 +176,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL),
                         null);
                 }
-                // 将topic信息存到topicPublishInfoTable这个map里
+                /**
+                 * save topic info
+                 * */
                 this.topicPublishInfoTable.put(this.defaultMQProducer.getCreateTopicKey(), new TopicPublishInfo());
 
+                //start a client instance which is a single instance
                 if (startFactory) {
                     mQClientFactory.start();
                 }

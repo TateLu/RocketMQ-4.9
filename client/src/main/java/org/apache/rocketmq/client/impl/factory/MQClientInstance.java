@@ -91,6 +91,8 @@ public class MQClientInstance {
         new ConcurrentHashMap<String, HashMap<Long, String>>();
     private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer>> brokerVersionTable =
         new ConcurrentHashMap<String, HashMap<String, Integer>>();
+
+
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {
@@ -235,6 +237,7 @@ public class MQClientInstance {
                      * 5.每隔1分钟检测线程池大小是否需要调整
                      */
                     this.startScheduledTask();
+
                     /**Start the pull service thread {@link PullMessageService}*/
                     this.pullMessageService.start();
                     /**Start the rebalance service thread {@link RebalanceService}*/
@@ -269,6 +272,11 @@ public class MQClientInstance {
      * */
     private void startScheduledTask() {
         if (null == this.clientConfig.getNamesrvAddr()) {
+
+            /**
+             * 只用了单线程的线程池，因为每个线程执行都用try-catch包住，很小概率线程会崩溃 && 每个任务很快
+             *  所以只用单线程即可
+             * */
             this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
                 @Override
