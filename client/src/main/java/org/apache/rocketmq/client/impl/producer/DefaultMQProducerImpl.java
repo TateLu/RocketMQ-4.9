@@ -149,16 +149,26 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     public void start(final boolean startFactory) throws MQClientException {
         switch (this.serviceState) {
             case CREATE_JUST:
+                //  先默认成启动失败，等最后完全启动成功的时候再置为ServiceState.RUNNING
                 this.serviceState = ServiceState.START_FAILED;
-
+                /**
+                 * 检查配置，比如group有没有写，是不是默认的那个名字，长度是不是超出限制了，等等一系列验证。
+                 */
                 this.checkConfig();
 
                 if (!this.defaultMQProducer.getProducerGroup().equals(MixAll.CLIENT_INNER_PRODUCER_GROUP)) {
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
-
+                /**
+                 * 单例模式，获取MQClientInstance对象，客户端实例。也就是Producer所部署的机器实例对象，负责操作的主要对象。
+                 */
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
-
+                /**
+                 * 注册producer，其实就是往producerTable map里仍key-value
+                 * private final ConcurrentMap<String, MQProducerInner> producerTable =
+                 * new ConcurrentHashMap<String, MQProducerInner>();
+                 * producerTable.putIfAbsent("my-producer", DefaultMQProducerImpl);
+                 */
                 boolean registerOK = mQClientFactory.registerProducer(this.defaultMQProducer.getProducerGroup(), this);
                 if (!registerOK) {
                     this.serviceState = ServiceState.CREATE_JUST;
@@ -166,7 +176,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL),
                         null);
                 }
-
+                // 将topic信息存到topicPublishInfoTable这个map里
                 this.topicPublishInfoTable.put(this.defaultMQProducer.getCreateTopicKey(), new TopicPublishInfo());
 
                 if (startFactory) {
@@ -189,7 +199,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
 
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
-
+        // 每隔1s扫描过期的请求
         RequestFutureHolder.getInstance().startScheduledTask(this);
 
     }
