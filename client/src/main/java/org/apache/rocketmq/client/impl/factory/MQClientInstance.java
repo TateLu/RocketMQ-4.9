@@ -214,6 +214,7 @@ public class MQClientInstance {
             //状态模式
             switch (this.serviceState) {
                 case CREATE_JUST:
+                    // 先默认成启动失败，等最后完全启动成功的时候再置为ServiceState.RUNNING
                     this.serviceState = ServiceState.START_FAILED;
 
 
@@ -222,17 +223,31 @@ public class MQClientInstance {
                         this.mQClientAPIImpl.fetchNameServerAddr();
                     }
                     // Start request-response channel
+                    // 启动请求响应通道，核心netty
                     this.mQClientAPIImpl.start();
                     // Start various schedule tasks
+                    /**
+                     * 启动各种定时任务
+                     * 1.每隔2分钟去检测namesrv的变化
+                     * 2.每隔30s从nameserver获取topic的路由信息有没有发生变化，或者说有没有新的topic路由信息
+                     * 3.每隔30s清除下线的broker
+                     * 4.每隔5s持久化所有的消费进度
+                     * 5.每隔1分钟检测线程池大小是否需要调整
+                     */
                     this.startScheduledTask();
                     /**Start the pull service thread {@link PullMessageService}*/
                     this.pullMessageService.start();
                     /**Start the rebalance service thread {@link RebalanceService}*/
                     this.rebalanceService.start();
                     // Start push service
+                    /**
+                     * 这里再次调用了DefaultMQProducerImpl().start()方法，这TM不死循环了吗？
+                     * 不会的，因为他传递了false，false再DefaultMQProducerImpl().start()方法里不会再次调用mQClientFactory.start();
+                     * 但是这也重复执行了两次DefaultMQProducerImpl().start()方法里的其他逻辑，不知道为啥这么搞，没看懂。
+                     */
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
 
-
+                    // 都启动完成，没报错的话，就将状态改为运行中
                     log.info("the client factory [{}] start OK", this.clientId);
                     this.serviceState = ServiceState.RUNNING;
                     break;
