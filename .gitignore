@@ -14,3 +14,4 @@ devenv
 .DS_Store
 localbin
 nohup.out
+config/store/
