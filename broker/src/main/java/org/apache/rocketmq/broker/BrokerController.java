@@ -851,14 +851,15 @@ public class BrokerController {
     }
 
     public void start() throws Exception {
+        //存储层服务，比如CommitLog、ConsumeQueue存储管理
         if (this.messageStore != null) {
             this.messageStore.start();
         }
-
+        //普通通道请求处理服务。一般的请求都是在这里被处理的
         if (this.remotingServer != null) {
             this.remotingServer.start();
         }
-
+        //VIP 通道请求处理服务。如果普通通道比较忙，那么可以使用VIP通道，一般作为客户端降级使用。
         if (this.fastRemotingServer != null) {
             this.fastRemotingServer.start();
         }
@@ -866,19 +867,19 @@ public class BrokerController {
         if (this.fileWatchService != null) {
             this.fileWatchService.start();
         }
-
+        //Broker访问对外接口的封装对象
         if (this.brokerOuterAPI != null) {
             this.brokerOuterAPI.start();
         }
-
+        //Pull长轮询服务
         if (this.pullRequestHoldService != null) {
             this.pullRequestHoldService.start();
         }
-
+        //清理心跳超时的生产者、消费者、过滤服务器
         if (this.clientHousekeepingService != null) {
             this.clientHousekeepingService.start();
         }
-
+        //过滤服务器管理。
         if (this.filterServerManager != null) {
             this.filterServerManager.start();
         }
@@ -888,7 +889,7 @@ public class BrokerController {
             handleSlaveSynchronize(messageStoreConfig.getBrokerRole());
             this.registerBrokerAll(true, false, true);
         }
-
+        //将Broker信息注册到Namesrv
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -900,11 +901,11 @@ public class BrokerController {
                 }
             }
         }, 1000 * 10, Math.max(10000, Math.min(brokerConfig.getRegisterNameServerPeriod(), 60000)), TimeUnit.MILLISECONDS);
-
+        //Broker监控数据统计管理
         if (this.brokerStatsManager != null) {
             this.brokerStatsManager.start();
         }
-
+        //Broker快速失败处理
         if (this.brokerFastFailure != null) {
             this.brokerFastFailure.start();
         }
