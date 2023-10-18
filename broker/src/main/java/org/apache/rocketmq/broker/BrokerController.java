@@ -855,7 +855,7 @@ public class BrokerController {
         if (this.messageStore != null) {
             this.messageStore.start();
         }
-        //普通通道请求处理服务。一般的请求都是在这里被处理的
+        //NettyRemotingServer 普通通道请求处理服务。一般的请求都是在这里被处理的
         if (this.remotingServer != null) {
             this.remotingServer.start();
         }
