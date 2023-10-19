@@ -672,7 +672,8 @@ public class CommitLog {
         long elapsedTimeInLock = 0;
         MappedFile unlockMappedFile = null;
 
-        putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
+        //spin or ReentrantLock ,depending on store config
+        putMessageLock.lock();
         try {
             MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
             long beginLockTimestamp = this.defaultMessageStore.getSystemClock().now();
@@ -689,7 +690,7 @@ public class CommitLog {
                 log.error("create mapped file1 error, topic: " + msg.getTopic() + " clientAddr: " + msg.getBornHostString());
                 return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, null));
             }
-
+            //写入文件
             result = mappedFile.appendMessage(msg, this.appendMessageCallback, putMessageContext);
             switch (result.getStatus()) {
                 case PUT_OK:

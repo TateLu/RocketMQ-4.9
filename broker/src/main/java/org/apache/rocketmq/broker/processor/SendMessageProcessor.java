@@ -330,7 +330,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor {
             }
             putMessageResult = this.brokerController.getTransactionalMessageService().asyncPrepareMessage(msgInner);
         } else {
-
+            //非事务消息
             putMessageResult = this.brokerController.getMessageStore().asyncPutMessage(msgInner);
         }
         return handlePutMessageResultFuture(putMessageResult, response, request, msgInner, responseHeader, mqtraceContext, ctx, queueIdInt);

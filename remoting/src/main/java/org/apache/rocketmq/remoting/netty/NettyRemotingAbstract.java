@@ -214,6 +214,7 @@ public abstract class NettyRemotingAbstract {
                         };
                         if (pair.getObject1() instanceof AsyncNettyRequestProcessor) {
                             AsyncNettyRequestProcessor processor = (AsyncNettyRequestProcessor)pair.getObject1();
+                            //处理消息
                             processor.asyncProcessRequest(ctx, cmd, callback);
                         } else {
                             NettyRequestProcessor processor = pair.getObject1();
