@@ -33,10 +33,12 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * 记录队列消费情况
- * 保存从broker拉取到的消息
- * Queue consumption snapshot
+ *  ProcessQueue是MessageQueue在消费端的重现、快照。
  *
+ * 记录队列消费情况 && 保存从broker拉取到的消息
+ *
+ * PullMessageService从消息服务器默认每次拉取32条消息，按消息队列偏移量的顺序存放在ProcessQueue中，
+ * PullMessageService将消息提交到消费者消费线程池，消息成功消费后，再从ProcessQueue中移除。
  */
 public class ProcessQueue {
     public final static long REBALANCE_LOCK_MAX_LIVE_TIME =
@@ -44,15 +46,17 @@ public class ProcessQueue {
     public final static long REBALANCE_LOCK_INTERVAL = Long.parseLong(System.getProperty("rocketmq.client.rebalance.lockInterval", "20000"));
     private final static long PULL_MAX_IDLE_TIME = Long.parseLong(System.getProperty("rocketmq.client.pull.pullMaxIdleTime", "120000"));
     private final InternalLogger log = ClientLogger.getLog();
+
+    /**读写锁，控制多线程并发修改msgTreeMap、msgTree MapTemp*/
     private final ReadWriteLock treeMapLock = new ReentrantReadWriteLock();
 
-    /**cache message*/
+    /**消息存储容器，键为消息在ConsumeQueue中的偏移量。*/
     private final TreeMap<Long, MessageExt> msgTreeMap = new TreeMap<Long, MessageExt>();
     private final AtomicLong msgCount = new AtomicLong();
     private final AtomicLong msgSize = new AtomicLong();
     private final Lock consumeLock = new ReentrantLock();
     /**
-     * A subset of msgTreeMap, will only be used when orderly consume
+     * 消息的有序集合
      */
     private final TreeMap<Long, MessageExt> consumingMsgOrderlyTreeMap = new TreeMap<Long, MessageExt>();
     private final AtomicLong tryUnlockTimes = new AtomicLong(0);
@@ -131,11 +135,12 @@ public class ProcessQueue {
     }
 
     /**
-     * 保存消息到 ProcessQueue 的 TreeMap 缓存,更新消费信息
+     * 保存消息到 ProcessQueue 的 TreeMap 缓存,按照消息偏移量排序
      * */
     public boolean putMessage(final List<MessageExt> msgs) {
         boolean dispatchToConsume = false;
         try {
+            //加锁
             this.treeMapLock.writeLock().lockInterruptibly();
             try {
                 int validMsgCnt = 0;

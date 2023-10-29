@@ -46,7 +46,7 @@ public class PullMessageService extends ServiceThread {
     }
 
     /**
-     * 设置成定时任务，稍后执行。即过了延迟时间才放入pullRequestQueue
+     * 设置成定时任务，稍后执行。即过了延迟时间才放入队列 pullRequestQueue
      * @param timeDelay 延迟时间
      * */
     public void executePullRequestLater(final PullRequest pullRequest, final long timeDelay) {
@@ -63,7 +63,7 @@ public class PullMessageService extends ServiceThread {
     }
 
     /**
-     * 立刻放入pullRequestQueue
+     * 立刻放入队列 pullRequestQueue
      * */
     public void executePullRequestImmediately(final PullRequest pullRequest) {
         try {
@@ -87,7 +87,9 @@ public class PullMessageService extends ServiceThread {
 
 
     /**
-     * select a consumer from consumer group to pull message
+     * 
+     * 从消费者组里，选择一个消费者，执行 {@link DefaultMQPushConsumerImpl#pullMessage(PullRequest)}
+     * @param pullRequest 拉取消息的参数
      * */
     private void pullMessage(final PullRequest pullRequest) {
         //按照消费者组name 选择消费者

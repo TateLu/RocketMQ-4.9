@@ -244,10 +244,12 @@ public class MQClientInstance {
                      */
                     this.startScheduledTask();
 
-                    /**Start the pull service thread {@link PullMessageService}*/
+                    /** 消息拉取 {@link PullMessageService}*/
                     this.pullMessageService.start();
-                    /**Start the rebalance service thread {@link RebalanceService}*/
+
+                    /** 重平衡 {@link RebalanceService}*/
                     this.rebalanceService.start();
+
                     // Start push service
                     /**
                      * 这里再次调用了DefaultMQProducerImpl().start()方法，这TM不死循环了吗？

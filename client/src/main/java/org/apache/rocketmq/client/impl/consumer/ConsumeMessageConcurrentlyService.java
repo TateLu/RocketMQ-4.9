@@ -189,7 +189,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         final boolean dispatchToConsume) {
         final int consumeBatchSize = this.defaultMQPushConsumer.getConsumeMessageBatchMaxSize();
         /**
-         *  sumbit consumeRequest directly
+         *  提交线程池
          * */
         if (msgs.size() <= consumeBatchSize) {
             ConsumeRequest consumeRequest = new ConsumeRequest(msgs, processQueue, messageQueue);
@@ -200,7 +200,8 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
             }
         }
         /**
-         *  split those messages into multiple batches  before consume messages
+         * 大于consumeBatchSize，拆分
+         * 因为是并发消费，拆成多份后，都提交到线程池，这样就实现了并发
          * */
         else {
             for (int total = 0; total < msgs.size(); ) {
@@ -381,7 +382,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                 log.info("the message queue not be able to consume, because it's dropped. group={} {}", ConsumeMessageConcurrentlyService.this.consumerGroup, this.messageQueue);
                 return;
             }
-            /**get consumer listener to consume messages*/
+            /**消费消息 messageListener*/
             MessageListenerConcurrently listener = ConsumeMessageConcurrentlyService.this.messageListener;
             ConsumeConcurrentlyContext context = new ConsumeConcurrentlyContext(messageQueue);
             ConsumeConcurrentlyStatus status = null;
@@ -409,8 +410,8 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                     }
                 }
                 /**
-                 * 1 execute user defined listener for business process
-                 * 2 get result status
+                 * 执行 messageListener
+                 *
                  * */
                 status = listener.consumeMessage(Collections.unmodifiableList(msgs), context);
             } catch (Throwable e) {

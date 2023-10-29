@@ -19,10 +19,10 @@ package org.apache.rocketmq.client.impl.consumer;
 import org.apache.rocketmq.common.message.MessageQueue;
 
 /**
- * 消息拉取任务，包含
+ * 消息拉取任务的相关信息，包含
  * 1 consumerGroup name
- * 2 MessageQueue
- * 3 ProcessQueue
+ * 2 MessageQueue 待拉取消费的队列
+ * 3 ProcessQueue 消息处理队列
  * */
 public class PullRequest {
     private String consumerGroup;
