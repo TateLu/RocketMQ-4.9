@@ -421,6 +421,9 @@ public class MQClientAPIImpl {
         return this.processSendResponse(brokerName, msg, response, addr);
     }
 
+    /**
+     * @param sendCallback 回调函数
+     * */
     private void sendMessageAsync(
         final String addr,
         final String brokerName,

@@ -73,13 +73,19 @@ public class MQClientInstance {
     private final String clientId;
     private final long bootTimestamp = System.currentTimeMillis();
 
-    //生产者组groupNme、生产者实例的映射
+    /**
+     * 生产者组groupNme、生产者实例的映射
+     * */
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
 
-    //消费者组groupNme、消费者实例的映射
+    /**
+     * 消费者组groupNme、消费者实例的映射
+     * */
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
 
-    //admin groupNme、实例的映射
+    /**
+     * admin groupNme、实例的映射
+     * */
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
     private final NettyClientConfig nettyClientConfig;
     private final MQClientAPIImpl mQClientAPIImpl;
@@ -935,6 +941,10 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 向MQClientInstance注册服务，将当前生产者加入
+     * MQClientInstance管理，方便后续调用网络请求、进行心跳检测等
+     * */
     public synchronized boolean registerProducer(final String group, final DefaultMQProducerImpl producer) {
         if (null == group || null == producer) {
             return false;
