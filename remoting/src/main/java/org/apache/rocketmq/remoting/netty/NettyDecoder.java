@@ -25,6 +25,12 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+/***
+ * {@lnk LengthFieldBasedFrameDecoder}
+ * A decoder that splits the received ByteBufs dynamically by the value of the length field in the message.
+ * It is particularly useful when you decode a binary message which has an integer header field that represents the length of
+ * the message body or the whole message.
+ * */
 public class NettyDecoder extends LengthFieldBasedFrameDecoder {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
 
