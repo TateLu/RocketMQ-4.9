@@ -39,6 +39,10 @@ public abstract class RebalanceImpl {
     protected static final InternalLogger log = ClientLogger.getLog();
     protected final ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable = new ConcurrentHashMap<String, Set<MessageQueue>>();
+    /**
+     * RebalanceImpl的Map<String,SubscriptionData>subTable在调用消费者DefaultMQPushConsumerImpl#subscribe方法时填充。
+     * 如果订阅信息发生变化，例如调用了unsubscribe()方法，则需要将不关心的主题消费队列从processQueueTable中移除
+     * */
     protected final ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner = new ConcurrentHashMap<String, SubscriptionData>();
     protected String consumerGroup;
     protected MessageModel messageModel;
@@ -202,7 +206,8 @@ public abstract class RebalanceImpl {
     }
 
     /**
-     * 遍历订阅信息topic，执行重平衡
+     * 每个消费者 {@link DefaultLitePullConsumerImpl} 都有rebalanceImpl实例
+     * 遍历该消费者的订阅的topic，执行重平衡
      */
     public void doRebalance(final boolean isOrder) {
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
@@ -227,8 +232,8 @@ public abstract class RebalanceImpl {
     }
 
     /**
-     * 重平衡,区分集群模式、广播模式
-     * 将拉取到的队列信息，重新分配
+     * 每个消费者遍历其订阅的topic
+     * 重平衡：区分集群模式、广播模式，将拉取到的队列信息，重新分配
      * 1 按照分配策略，更新队列信息
      * 2 更新 processQueue
      */
@@ -264,13 +269,15 @@ public abstract class RebalanceImpl {
                 if (mqSet != null && cidAll != null) {
                     List<MessageQueue> mqAll = new ArrayList<MessageQueue>();
                     mqAll.addAll(mqSet);
-
+                    //对cidAll、mqAll进行排序。这一步很重要，同一个消费
+                    //组内看到的视图应保持一致，确保同一个消费队列不会被多个消费者
+                    //分配
                     Collections.sort(mqAll);
                     Collections.sort(cidAll);
-                    //获取策略：队列分配给消费者
                     AllocateMessageQueueStrategy strategy = this.allocateMessageQueueStrategy;
                     List<MessageQueue> allocateResult = null;
                     try {
+                        //按照策略分配队列给当前消费者
                         allocateResult = strategy.allocate(this.consumerGroup, this.mQClientFactory.getClientId(), mqAll, cidAll);
                     } catch (Throwable e) {
                         log.error("AllocateMessageQueueStrategy.allocate Exception. allocateMessageQueueStrategyName={}", strategy.getName(), e);
@@ -315,22 +322,22 @@ public abstract class RebalanceImpl {
         }
     }
     /**
-     * @param mqSet newly allocated message queues
+     * @param mqSet 新分配的队列
      * 对比拉取的新队列列表list1、消费者端已经存在的旧队列列表list2，
-     * list2中的某个队列，在list1不存在，移除该队列
+     * list2中的某个队列，在list1不存在，队列状态dropped = true && 移除队列
      * list1 中存在的某个队列，在list2中不存在，更新processQueueTable && 生成新的pullRequest 并更新 pullRequestQueue
-     *
+     * @return true if changed
      *
      * */
     private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> mqSet, final boolean isOrder) {
         boolean changed = false;
 
+        /**遍历当前的队列缓存，移除被另外分配的队列*/
         Iterator<Entry<MessageQueue, ProcessQueue>> it = this.processQueueTable.entrySet().iterator();
         while (it.hasNext()) {
             Entry<MessageQueue, ProcessQueue> next = it.next();
             MessageQueue mq = next.getKey();
             ProcessQueue pq = next.getValue();
-
             if (mq.getTopic().equals(topic)) {
                 //if old mq not contained in newly allocated  mq list, stop its corresponding requestQueue's consumption && remove this messageQueue
                 if (!mqSet.contains(mq)) {
@@ -359,6 +366,7 @@ public abstract class RebalanceImpl {
             }
         }
 
+        /**遍历新分配的队列列表，加入新分配的队列，生成 {@link PullRequest} , 拉取消息*/
         //iterate newly allocated mq && construct new pullRequest list and submit them
         List<PullRequest> pullRequestList = new ArrayList<PullRequest>();
         for (MessageQueue mq : mqSet) {
@@ -405,7 +413,9 @@ public abstract class RebalanceImpl {
             }
         }
 
-        //submit pullRequest && put it to  pullMessageService's pullRequestQueue
+        /**
+         * PullRequest添加到PullMessageService线程的pullRequestQueue中
+         * */
         this.dispatchPullRequest(pullRequestList);
 
         return changed;

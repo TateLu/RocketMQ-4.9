@@ -39,6 +39,7 @@ public class RebalanceService extends ServiceThread {
         while (!this.isStopped()) {
             //默认等待20s
             this.waitForRunning(waitInterval);
+            //每20s 对 MQClientInstance实例 的consumerTable 遍历， 执行rebalance方法
             this.mqClientFactory.doRebalance();
         }
 
