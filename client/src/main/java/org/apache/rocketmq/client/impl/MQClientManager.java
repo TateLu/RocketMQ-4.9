@@ -49,10 +49,12 @@ public class MQClientManager {
         return getOrCreateMQClientInstance(clientConfig, null);
     }
 
+    /**
+     * 按照 clientId 区分 MQClientInstance
+     * */
     public MQClientInstance getOrCreateMQClientInstance(final ClientConfig clientConfig, RPCHook rpcHook) {
-        //key = clientId
         String clientId = clientConfig.buildMQClientId();
-        System.out.printf("getOrCreateMQClientInstance clientId %s %n",clientId);
+        log.info("getOrCreateMQClientInstance clientId {} ",clientId);
         MQClientInstance instance = this.factoryTable.get(clientId);
         if (null == instance) {
             instance =

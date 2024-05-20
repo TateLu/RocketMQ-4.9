@@ -166,11 +166,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                  * 单例模式，获取MQClientInstance对象，客户端实例。也就是Producer所部署的机器实例对象，负责操作的主要对象。
                  */
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
+
                 /**
                  * 生产者注册 到 MQClientInstance 的 生产者组。，其实就是往producerTable map里放key-value
                  */
                 boolean registerOK = mQClientFactory.registerProducer(this.defaultMQProducer.getProducerGroup(), this);
                 if (!registerOK) {
+                    //注意： 1个MQClientInstance注册的生产者： 生产者组名-生产者实例 1对1 。重复注册，会报错。
                     this.serviceState = ServiceState.CREATE_JUST;
                     throw new MQClientException("The producer group[" + this.defaultMQProducer.getProducerGroup()
                         + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL),

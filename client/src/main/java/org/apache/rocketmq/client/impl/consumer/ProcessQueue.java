@@ -33,7 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- *  ProcessQueue是MessageQueue在消费端的重现、快照。
+ *  ProcessQueue是 MessageQueue 在消费端的重现、快照。
  *
  * 记录队列消费情况 && 保存从broker拉取到的消息
  *

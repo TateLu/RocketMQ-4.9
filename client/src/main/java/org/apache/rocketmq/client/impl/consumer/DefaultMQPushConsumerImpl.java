@@ -199,6 +199,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         this.offsetStore = offsetStore;
     }
 
+    //书签 消费者 拉取消息
     /**
      *
      * 拉取消息的具体实现，封装、发送请求
@@ -311,7 +312,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
         final long beginTimestamp = System.currentTimeMillis();
 
-        //设置消费者 拉取消息的回调函数
+        //书签 消费者 消费回调函数
         PullCallback pullCallback = new PullCallback() {
             @Override
             public void onSuccess(PullResult pullResult) {
@@ -329,7 +330,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                                 pullRequest.getMessageQueue().getTopic(), pullRT);
 
                             long firstMsgOffset = Long.MAX_VALUE;
-                            /**not found any messages*/
+                            //消息列表为空
                             if (pullResult.getMsgFoundList() == null || pullResult.getMsgFoundList().isEmpty()) {
                                 DefaultMQPushConsumerImpl.this.executePullRequestImmediately(pullRequest);
                             } else {
@@ -345,9 +346,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
                                 /**
                                  *
-                                 * 消费消息，提交到线程池，又是一个异步实现
-                                 * 1 concurrently
-                                 * 2 orderly
+                                 * 消费消息，提交到线程池，区分2个实现(都会提交到线程池)
+                                 *
+                                 * 1 concurrently {@link ConsumeMessageConcurrentlyService#submitConsumeRequest(List, ProcessQueue, MessageQueue, boolean)}
+                                 * 2 orderly {@link ConsumeMessageOrderlyService#submitConsumeRequest(List, ProcessQueue, MessageQueue, boolean)}
                                  * */
                                 DefaultMQPushConsumerImpl.this.consumeMessageService.submitConsumeRequest(
                                     pullResult.getMsgFoundList(),
@@ -600,12 +602,12 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    //书签 消费者 启动
     /**
-     * 启动消费者
-     *  加锁
+     *  加锁互斥
      * */
     public synchronized void start() throws MQClientException {
-        //状态模式 设计模式
+        //书签 设计模式 状态模式
         switch (this.serviceState) {
             case CREATE_JUST:
                 log.info("the consumer [{}] start beginning. messageModel={}, isUnitMode={}", this.defaultMQPushConsumer.getConsumerGroup(),
@@ -622,8 +624,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 }
                 /**
                  * 初始化相关属性
-                 * MQClientManager.getInstance() 单例模式
                  * */
+                //MQClientManager.getInstance() 单例模式
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQPushConsumer, this.rpcHook);
                 this.rebalanceImpl.setConsumerGroup(this.defaultMQPushConsumer.getConsumerGroup());
                 this.rebalanceImpl.setMessageModel(this.defaultMQPushConsumer.getMessageModel());
@@ -656,7 +658,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 }
                 this.offsetStore.load();
 
-                //区分顺序消费、并发消费
+                //书签 消费者 顺序消息 并发消息
                 if (this.getMessageListenerInner() instanceof MessageListenerOrderly) {
                     this.consumeOrderly = true;
                     this.consumeMessageService = new ConsumeMessageOrderlyService(this,
@@ -672,6 +674,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 //向 MQClientInstance 注册消费者
                 boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPushConsumer.getConsumerGroup(), this);
                 if (!registerOK) {
+                    //注意： 1个MQClientInstance注册的消费者： 消费者组名-消费者实例 1对1 。重复注册，会报错。
                     this.serviceState = ServiceState.CREATE_JUST;
                     this.consumeMessageService.shutdown(defaultMQPushConsumer.getAwaitTerminationMillisWhenShutdown());
                     throw new MQClientException("The consumer group[" + this.defaultMQPushConsumer.getConsumerGroup()
