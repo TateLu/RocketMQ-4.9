@@ -33,9 +33,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- *  ProcessQueue是 MessageQueue 在消费端的重现、快照。
+ *  <p>ProcessQueue是 MessageQueue 在消费端的重现、快照。</p>
  *
- * 记录队列消费情况 && 保存从broker拉取到的消息
+ * <p>记录队列消费情况 && 保存从broker拉取到的消息</p>
  *
  * PullMessageService从消息服务器默认每次拉取32条消息，按消息队列偏移量的顺序存放在ProcessQueue中，
  * PullMessageService将消息提交到消费者消费线程池，消息成功消费后，再从ProcessQueue中移除。
