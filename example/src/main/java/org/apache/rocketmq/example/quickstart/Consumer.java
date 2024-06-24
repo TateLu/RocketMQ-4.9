@@ -33,7 +33,7 @@ public class Consumer {
 
     public static void main(String[] args) throws InterruptedException, MQClientException {
         startConsumer();
-        startConsumer();
+//        startConsumer();
 
     }
 

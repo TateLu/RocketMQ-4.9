@@ -171,6 +171,7 @@ public class PullMessageProcessor extends AsyncNettyRequestProcessor {
                 return response;
             }
         } else {
+            //找到消费者组信息
             ConsumerGroupInfo consumerGroupInfo =
                 this.brokerController.getConsumerManager().getConsumerGroupInfo(requestHeader.getConsumerGroup());
             if (null == consumerGroupInfo) {
@@ -186,7 +187,7 @@ public class PullMessageProcessor extends AsyncNettyRequestProcessor {
                 response.setRemark("the consumer group[" + requestHeader.getConsumerGroup() + "] can not consume by broadcast way");
                 return response;
             }
-
+            //消费者组里的topic信息
             subscriptionData = consumerGroupInfo.findSubscriptionData(requestHeader.getTopic());
             if (null == subscriptionData) {
                 log.warn("the consumer's subscription not exist, group: {}, topic:{}", requestHeader.getConsumerGroup(), requestHeader.getTopic());

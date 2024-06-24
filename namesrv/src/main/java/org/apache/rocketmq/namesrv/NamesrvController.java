@@ -74,7 +74,7 @@ public class NamesrvController {
     }
 
     public boolean initialize() {
-
+        //加载KV配置。主要是从本地文件中加载KV配置到内存中。
         this.kvConfigManager.load();
 
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
@@ -83,7 +83,11 @@ public class NamesrvController {
             Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
 
         this.registerProcessor();
-
+        /**
+         * Namesrv 主动检测 Broker 是否可用，如果不可用就
+         * 剔除。生产者、消费者也能通过心跳发现被踢出的路由，从而感知Bro
+         * ker下线。
+         * */
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker, 5, 10, TimeUnit.SECONDS);
 
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.kvConfigManager::printAllPeriodically, 1, 10, TimeUnit.MINUTES);
