@@ -146,6 +146,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.start(true);
     }
 
+    //书签 生产者 启动
     /**
      * @param startFactory start a client instance which is a single instance
      * */
