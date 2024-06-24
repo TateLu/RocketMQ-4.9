@@ -43,6 +43,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.*;
 
+//书签 顺序消息 实现类
+/**
+ * 有start shutdown方法
+ * */
 public class ConsumeMessageOrderlyService implements ConsumeMessageService {
     private static final InternalLogger log = ClientLogger.getLog();
     private final static long MAX_TIME_CONSUME_CONTINUOUSLY =
@@ -84,10 +88,11 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("ConsumeMessageScheduledThread_"));
     }
-
+    //书签 顺序消息 加锁
     public void start() {
+        //集群模式
         if (MessageModel.CLUSTERING.equals(ConsumeMessageOrderlyService.this.defaultMQPushConsumerImpl.messageModel())) {
-            //定时任务，每20秒加锁1次
+            //定时任务，即该消费者要顺序消息，将对应的队列每20s加锁一次
             this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
@@ -423,8 +428,9 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                 log.warn("run, the message queue not be able to consume, because it's dropped. {}", this.messageQueue);
                 return;
             }
-            /** 顺序消费，要加锁。如果是并发消费，则不用加锁 */
+            //获取锁对象
             final Object objLock = messageQueueLock.fetchLockObject(this.messageQueue);
+            //加锁，保证只有一个线程消费
             synchronized (objLock) {
                 if (MessageModel.BROADCASTING.equals(ConsumeMessageOrderlyService.this.defaultMQPushConsumerImpl.messageModel())
                     || (this.processQueue.isLocked() && !this.processQueue.isLockExpired())) {
@@ -454,7 +460,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                             ConsumeMessageOrderlyService.this.submitConsumeRequestLater(processQueue, messageQueue, 10);
                             break;
                         }
-                        /**批量消费*/
+                        /**取出消息*/
                         final int consumeBatchSize = ConsumeMessageOrderlyService.this.defaultMQPushConsumer.getConsumeMessageBatchMaxSize();
                         List<MessageExt> msgs = this.processQueue.takeMessages(consumeBatchSize);
                         defaultMQPushConsumerImpl.resetRetryAndNamespace(msgs, defaultMQPushConsumer.getConsumerGroup());

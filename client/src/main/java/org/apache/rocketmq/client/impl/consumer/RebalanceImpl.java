@@ -125,6 +125,11 @@ public abstract class RebalanceImpl {
         return result;
     }
 
+    /**
+     *
+     * 1 向broker申请加锁
+     * 2 拿到被加锁的队列信息，记录到本地
+     * */
     public boolean lock(final MessageQueue mq) {
         FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInSubscribe(mq.getBrokerName(), MixAll.MASTER_ID, true);
         if (findBrokerResult != null) {
@@ -135,6 +140,7 @@ public abstract class RebalanceImpl {
 
             try {
                 Set<MessageQueue> lockedMq = this.mQClientFactory.getMQClientAPIImpl().lockBatchMQ(findBrokerResult.getBrokerAddr(), requestBody, 1000);
+                //遍历得出哪些队列被锁住了，记录到本地
                 for (MessageQueue mmqq : lockedMq) {
                     ProcessQueue processQueue = this.processQueueTable.get(mmqq);
                     if (processQueue != null) {
@@ -237,10 +243,12 @@ public abstract class RebalanceImpl {
         return subscriptionInner;
     }
 
+    //书签 消费者 重平衡 rebalanceByTopic
     /**
-     * 每个消费者遍历其订阅的topic
      * 重平衡：区分集群模式、广播模式，将拉取到的队列信息，重新分配
-     * 1 按照分配策略，更新队列信息
+     * 每个消费者遍历其订阅的topic
+     *
+     * 1 按照分配策略，分配队列给当前消费者
      * 2 更新 processQueue
      */
     private void rebalanceByTopic(final String topic, final boolean isOrder) {
@@ -327,8 +335,11 @@ public abstract class RebalanceImpl {
 
         }
     }
+
+    //书签 消费者 重平衡 updateProcessQueueTableInRebalance
     /**
-     * @param mqSet 新分配的队列
+     * @param mqSet 给当期消费者新分配的队列
+     *
      * 对比拉取的新队列列表list1、消费者端已经存在的旧队列列表list2，
      * list2中的某个队列，在list1不存在，队列状态dropped = true && 移除队列
      * list1 中存在的某个队列，在list2中不存在，更新processQueueTable && 生成新的pullRequest 并更新 pullRequestQueue
@@ -345,7 +356,7 @@ public abstract class RebalanceImpl {
             MessageQueue mq = next.getKey();
             ProcessQueue pq = next.getValue();
             if (mq.getTopic().equals(topic)) {
-                //if old mq not contained in newly allocated  mq list, stop its corresponding requestQueue's consumption && remove this messageQueue
+                //如果老队列不在分配的新队列列表里,停止这个老队列 && 移除这个老队列
                 if (!mqSet.contains(mq)) {
                     pq.setDropped(true);
                     if (this.removeUnnecessaryMessageQueue(mq, pq)) {
@@ -372,12 +383,11 @@ public abstract class RebalanceImpl {
             }
         }
 
-        /**遍历新分配的队列列表，加入新分配的队列，生成 {@link PullRequest} , 拉取消息*/
-        //iterate newly allocated mq && construct new pullRequest list and submit them
+        /**遍历新分配的队列列表，筛选后的队列加入 {@link PullRequest} , 拉取消息*/
         List<PullRequest> pullRequestList = new ArrayList<PullRequest>();
         for (MessageQueue mq : mqSet) {
             if (!this.processQueueTable.containsKey(mq)) {
-                //lock mq failed
+                //如果是顺序消息队列，则尝试加锁
                 if (isOrder && !this.lock(mq)) {
                     log.warn("doRebalance, {}, add a new mq failed, {}, because lock failed", consumerGroup, mq);
                     continue;
@@ -396,8 +406,8 @@ public abstract class RebalanceImpl {
                 }
 
                 /**
-                 * judge a newly allocated mq whether already exists in processQueueTable
-                 * if not, construct a new pullRequest
+                 * 判断新分配的队列是否已经存在于processQueueTable里
+                 * 如果不存在，构建一个新的 pullRequest
                  * */
                 if (nextOffset >= 0) {
                     ProcessQueue pre = this.processQueueTable.putIfAbsent(mq, pq);

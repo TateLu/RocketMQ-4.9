@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MQClientManager {
     private final static InternalLogger log = ClientLogger.getLog();
 
-    //单例模式 饿汉模式
+    //书签 设计模式 单例模式 饿汉模式
     private static MQClientManager instance = new MQClientManager();
     private AtomicInteger factoryIndexGenerator = new AtomicInteger();
 
@@ -49,10 +49,13 @@ public class MQClientManager {
         return getOrCreateMQClientInstance(clientConfig, null);
     }
 
+    /**
+     * 按照 clientId 区分 MQClientInstance
+     * */
     public MQClientInstance getOrCreateMQClientInstance(final ClientConfig clientConfig, RPCHook rpcHook) {
-        //key = clientId
+        //clientId = client ip + 生产者/消费者 实例名称（随机值）
         String clientId = clientConfig.buildMQClientId();
-        System.out.printf("getOrCreateMQClientInstance clientId %s %n",clientId);
+        log.info("getOrCreateMQClientInstance clientId {} ",clientId);
         MQClientInstance instance = this.factoryTable.get(clientId);
         if (null == instance) {
             instance =

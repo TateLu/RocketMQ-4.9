@@ -39,7 +39,6 @@ import org.apache.rocketmq.client.hook.FilterMessageHook;
 import org.apache.rocketmq.client.impl.CommunicationMode;
 import org.apache.rocketmq.client.impl.MQClientManager;
 import org.apache.rocketmq.client.impl.factory.MQClientInstance;
-import org.apache.rocketmq.client.log.ClientLogger;
 import org.apache.rocketmq.client.stat.ConsumerStatsManager;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.ServiceState;
@@ -59,10 +58,11 @@ import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
 import org.apache.rocketmq.common.protocol.route.BrokerData;
 import org.apache.rocketmq.common.protocol.route.TopicRouteData;
 import org.apache.rocketmq.common.sysflag.PullSysFlag;
-import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 import org.apache.rocketmq.remoting.exception.RemotingException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.Map.Entry;
@@ -83,7 +83,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     private static final long PULL_TIME_DELAY_MILLS_WHEN_SUSPEND = 1000;
     private static final long BROKER_SUSPEND_MAX_TIME_MILLIS = 1000 * 15;
     private static final long CONSUMER_TIMEOUT_MILLIS_WHEN_SUSPEND = 1000 * 30;
-    private final InternalLogger log = ClientLogger.getLog();
+    //private final InternalLogger log = ClientLogger.getLog();
+
+    public final Logger log = LoggerFactory.getLogger(this.getClass());
+
     private final DefaultMQPushConsumer defaultMQPushConsumer;
     private final RebalanceImpl rebalanceImpl = new RebalancePushImpl(this);
     private final ArrayList<FilterMessageHook> filterMessageHookList = new ArrayList<FilterMessageHook>();
@@ -199,6 +202,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         this.offsetStore = offsetStore;
     }
 
+    //书签 消费者 拉取消息
     /**
      *
      * 拉取消息的具体实现，封装、发送请求
@@ -273,6 +277,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
         //是顺序消费
         else {
+            //顺序消费 & 加锁成功了
             if (processQueue.isLocked()) {
                 if (!pullRequest.isPreviouslyLocked()) {
                     long offset = -1L;
@@ -295,6 +300,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     pullRequest.setNextOffset(offset);
                 }
             } else {
+                //没加锁成功，延时时间再拉取
                 this.executePullRequestLater(pullRequest, pullTimeDelayMillsWhenException);
                 log.info("pull message later because not locked in broker, {}", pullRequest);
                 return;
@@ -311,7 +317,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
         final long beginTimestamp = System.currentTimeMillis();
 
-        //设置消费者 拉取消息的回调函数
+        //书签 消费者 消费回调函数
         PullCallback pullCallback = new PullCallback() {
             @Override
             public void onSuccess(PullResult pullResult) {
@@ -329,7 +335,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                                 pullRequest.getMessageQueue().getTopic(), pullRT);
 
                             long firstMsgOffset = Long.MAX_VALUE;
-                            /**not found any messages*/
+                            //消息列表为空
                             if (pullResult.getMsgFoundList() == null || pullResult.getMsgFoundList().isEmpty()) {
                                 DefaultMQPushConsumerImpl.this.executePullRequestImmediately(pullRequest);
                             } else {
@@ -345,9 +351,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
                                 /**
                                  *
-                                 * 消费消息，提交到线程池，又是一个异步实现
-                                 * 1 concurrently
-                                 * 2 orderly
+                                 * 消费消息，提交到线程池，区分2个实现(都会提交到线程池)
+                                 *
+                                 * 1 concurrently {@link ConsumeMessageConcurrentlyService#submitConsumeRequest(List, ProcessQueue, MessageQueue, boolean)}
+                                 * 2 orderly {@link ConsumeMessageOrderlyService#submitConsumeRequest(List, ProcessQueue, MessageQueue, boolean)}
                                  * */
                                 DefaultMQPushConsumerImpl.this.consumeMessageService.submitConsumeRequest(
                                     pullResult.getMsgFoundList(),
@@ -600,12 +607,12 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    //书签 消费者 启动
     /**
-     * 启动消费者
-     *  加锁
+     *  加锁互斥
      * */
     public synchronized void start() throws MQClientException {
-        //状态模式 设计模式
+        //书签 设计模式 状态模式
         switch (this.serviceState) {
             case CREATE_JUST:
                 log.info("the consumer [{}] start beginning. messageModel={}, isUnitMode={}", this.defaultMQPushConsumer.getConsumerGroup(),
@@ -622,8 +629,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 }
                 /**
                  * 初始化相关属性
-                 * MQClientManager.getInstance() 单例模式
                  * */
+                //this.mQClientFactory (即MQClientInstance实例)。有不同的clientId，则有不同的MQClientInstance实例（mQClientFactory）
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQPushConsumer, this.rpcHook);
                 this.rebalanceImpl.setConsumerGroup(this.defaultMQPushConsumer.getConsumerGroup());
                 this.rebalanceImpl.setMessageModel(this.defaultMQPushConsumer.getMessageModel());
@@ -656,7 +663,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 }
                 this.offsetStore.load();
 
-                //区分顺序消费、并发消费
+                //书签 消费者 顺序消息 并发消息
                 if (this.getMessageListenerInner() instanceof MessageListenerOrderly) {
                     this.consumeOrderly = true;
                     this.consumeMessageService = new ConsumeMessageOrderlyService(this,
@@ -670,8 +677,12 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 this.consumeMessageService.start();
 
                 //向 MQClientInstance 注册消费者
+                log.info("MQClientInstance {} getConsumerGroup {} consumer {} clientId {}",this.getmQClientFactory(),this.defaultMQPushConsumer.getConsumerGroup(),this,this.getmQClientFactory().getClientId());
+                //规范来说，一个进程里的一个consumer group 只能有一个consumer实例。否则容易发生单点故障。
                 boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPushConsumer.getConsumerGroup(), this);
                 if (!registerOK) {
+                    //注意： 1个MQClientInstance注册的消费者： 消费者组名-消费者实例 1对1 。重复注册，会报错。
+                    //说明规范情况下，同一个进程里，一个消费者组只能存在一个消费者实例。要开启多个消费者实例，要开多进程，也符合高可用的原则
                     this.serviceState = ServiceState.CREATE_JUST;
                     this.consumeMessageService.shutdown(defaultMQPushConsumer.getAwaitTerminationMillisWhenShutdown());
                     throw new MQClientException("The consumer group[" + this.defaultMQPushConsumer.getConsumerGroup()

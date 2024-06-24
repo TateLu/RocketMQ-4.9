@@ -938,6 +938,14 @@ public class CommitLog {
         return -1;
     }
 
+    //书签 broker commitlog 读取消息
+    /**
+     * 根据偏移量与消息长度查找消息。首先根据偏移找到文件所在的
+     * 物理偏移量，然后用offset与文件长度取余，得到在文件内的偏移
+     * 量，从该偏移量读取size长度的内容并返回。如果只根据消息偏移量
+     * 查找消息，则首先找到文件内的偏移量，然后尝试读取4字节，获取消
+     * 息的实际长度，最后读取指定字节。
+     * */
     public SelectMappedBufferResult getMessage(final long offset, final int size) {
         int mappedFileSize = this.defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog();
         MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset, offset == 0);

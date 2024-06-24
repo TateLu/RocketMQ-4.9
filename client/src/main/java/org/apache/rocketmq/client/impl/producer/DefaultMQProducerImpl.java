@@ -146,6 +146,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.start(true);
     }
 
+    //书签 生产者 启动
     /**
      * @param startFactory start a client instance which is a single instance
      * */
@@ -162,10 +163,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 if (!this.defaultMQProducer.getProducerGroup().equals(MixAll.CLIENT_INNER_PRODUCER_GROUP)) {
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
-                /**
-                 * 单例模式，获取MQClientInstance对象，客户端实例。也就是Producer所部署的机器实例对象，负责操作的主要对象。
-                 */
+                //与消费者启动同理
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
+
                 /**
                  * 生产者注册 到 MQClientInstance 的 生产者组。，其实就是往producerTable map里放key-value
                  */
