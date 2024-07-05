@@ -18,6 +18,18 @@ package org.apache.rocketmq.store;
 
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
+import org.apache.rocketmq.common.UtilAll;
+import org.apache.rocketmq.common.constant.LoggerName;
+import org.apache.rocketmq.common.message.MessageExt;
+import org.apache.rocketmq.common.message.MessageExtBatch;
+import org.apache.rocketmq.logging.InternalLogger;
+import org.apache.rocketmq.logging.InternalLoggerFactory;
+import org.apache.rocketmq.store.CommitLog.PutMessageContext;
+import org.apache.rocketmq.store.config.FlushDiskType;
+import org.apache.rocketmq.store.config.MessageStoreConfig;
+import org.apache.rocketmq.store.util.LibC;
+import sun.nio.ch.DirectBuffer;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -31,17 +43,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import org.apache.rocketmq.common.UtilAll;
-import org.apache.rocketmq.common.constant.LoggerName;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
-import org.apache.rocketmq.common.message.MessageExt;
-import org.apache.rocketmq.common.message.MessageExtBatch;
-import org.apache.rocketmq.store.CommitLog.PutMessageContext;
-import org.apache.rocketmq.store.config.FlushDiskType;
-import org.apache.rocketmq.store.config.MessageStoreConfig;
-import org.apache.rocketmq.store.util.LibC;
-import sun.nio.ch.DirectBuffer;
 
 public class MappedFile extends ReferenceResource {
     public static final int OS_PAGE_SIZE = 1024 * 4;
@@ -416,19 +417,35 @@ public class MappedFile extends ReferenceResource {
         return null;
     }
 
+    /**
+     * 根据给定的位置选择映射的缓冲区。
+     * 该方法旨在从当前的映射缓冲区中切分出一个指定位置开始的子缓冲区。
+     *
+     * @param pos 指定的缓冲区位置，用于从该位置开始切分新的缓冲区。
+     * @return 返回一个SelectMappedBufferResult对象，包含切分后的缓冲区和其他相关信息；
+     *         如果无法进行切分，则返回null。
+     */
     public SelectMappedBufferResult selectMappedBuffer(int pos) {
+        // 获取当前的读取位置。
         int readPosition = getReadPosition();
+        // 检查指定位置是否在已读取的范围内且不小于0。
         if (pos < readPosition && pos >= 0) {
+            // 如果当前对象可以保持其状态。
             if (this.hold()) {
+                // 切分当前的mappedByteBuffer得到一个新的ByteBuffer。
                 ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
+                // 设置新ByteBuffer的位置为指定的位置。
                 byteBuffer.position(pos);
+                // 计算新ByteBuffer的大小。
                 int size = readPosition - pos;
+                // 再次切分ByteBuffer，以设置新的限制大小。
                 ByteBuffer byteBufferNew = byteBuffer.slice();
                 byteBufferNew.limit(size);
+                // 创建并返回一个新的SelectMappedBufferResult对象，包含切分后的缓冲区和其他相关信息。
                 return new SelectMappedBufferResult(this.fileFromOffset + pos, byteBufferNew, size, this);
             }
         }
-
+        // 如果条件不满足，返回null。
         return null;
     }
 

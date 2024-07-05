@@ -546,15 +546,30 @@ public class ConsumeQueue {
      * 1 单个ConsumeQueue文件中默认包含30万个条目，单个文件的长度 为3×106×20字节，单个ConsumeQueue文件可以看作一个ConsumeQueue 条目的数组，其下标为ConsumeQueue的逻辑偏移量，消息消费进度存 储的偏移量即逻辑偏移量。
      * 2 根据偏移量定位到具体的物理文件。通过将该偏 移量与物理文件的大小取模获取在该文件的偏移量，从偏移量开始连 续读取20个字节即可。
      * */
+    /**
+     * 根据起始索引获取索引缓冲区。
+     * 该方法用于定位并返回与给定起始索引对应的索引缓冲区。它首先计算给定索引在文件中的偏移量，
+     * 然后尝试找到包含该偏移量的映射文件，最后从该映射文件中选择并返回相应的缓冲区。
+     *
+     * @param startIndex 起始索引，用于计算文件中的偏移量。
+     * @return 返回包含指定索引的索引缓冲区，如果找不到则返回null。
+     */
     public SelectMappedBufferResult getIndexBuffer(final long startIndex) {
+        // 获取当前映射文件的大小
         int mappedFileSize = this.mappedFileSize;
+        // 计算给定索引在文件中的偏移量
         long offset = startIndex * CQ_STORE_UNIT_SIZE;
+
+        // 检查偏移量是否在有效范围内
         if (offset >= this.getMinLogicOffset()) {
+            // 根据偏移量查找对应的映射文件
             MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset);
             if (mappedFile != null) {
+                // 从映射文件中选择并返回相应的缓冲区
                 return mappedFile.selectMappedBuffer((int) (offset % mappedFileSize));
             }
         }
+        // 如果找不到对应的映射文件或偏移量无效，返回null
         return null;
     }
 

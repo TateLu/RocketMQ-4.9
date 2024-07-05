@@ -16,19 +16,15 @@
  */
 package org.apache.rocketmq.store;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class MappedFileQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -473,12 +469,24 @@ public class MappedFileQueue {
      * @param returnFirstOnNotFound If the mapped file is not found, then return the first one.
      * @return Mapped file or null (when not found and returnFirstOnNotFound is <code>false</code>).
      */
+    /**
+     * 根据偏移量查找映射文件。
+     *
+     * @param offset 查询的偏移量。
+     * @param returnFirstOnNotFound 如果找不到指定偏移量的映射文件，是否返回第一个映射文件。
+     * @return 对应偏移量的MappedFile对象，如果找不到则返回null。
+     */
     public MappedFile findMappedFileByOffset(final long offset, final boolean returnFirstOnNotFound) {
         try {
+            // 获取第一个和最后一个映射文件，用于判断偏移量是否在有效范围内
             MappedFile firstMappedFile = this.getFirstMappedFile();
             MappedFile lastMappedFile = this.getLastMappedFile();
+
+            // 如果第一个和最后一个映射文件都存在
             if (firstMappedFile != null && lastMappedFile != null) {
+                // 判断偏移量是否落在第一个和最后一个映射文件的时间范围内
                 if (offset < firstMappedFile.getFileFromOffset() || offset >= lastMappedFile.getFileFromOffset() + this.mappedFileSize) {
+                    // 如果偏移量不在范围内，记录日志警告
                     LOG_ERROR.warn("Offset not matched. Request offset: {}, firstOffset: {}, lastOffset: {}, mappedFileSize: {}, mappedFiles count: {}",
                         offset,
                         firstMappedFile.getFileFromOffset(),
@@ -486,18 +494,24 @@ public class MappedFileQueue {
                         this.mappedFileSize,
                         this.mappedFiles.size());
                 } else {
+                    // 计算偏移量所在映射文件的索引
                     int index = (int) ((offset / this.mappedFileSize) - (firstMappedFile.getFileFromOffset() / this.mappedFileSize));
                     MappedFile targetFile = null;
+
+                    // 尝试根据索引获取对应的映射文件
                     try {
                         targetFile = this.mappedFiles.get(index);
                     } catch (Exception ignored) {
+                        // 忽略异常
                     }
 
+                    // 如果获取成功且偏移量在该映射文件范围内，则返回该映射文件
                     if (targetFile != null && offset >= targetFile.getFileFromOffset()
                         && offset < targetFile.getFileFromOffset() + this.mappedFileSize) {
                         return targetFile;
                     }
 
+                    // 如果上述条件不满足，遍历所有映射文件，查找包含指定偏移量的映射文件
                     for (MappedFile tmpMappedFile : this.mappedFiles) {
                         if (offset >= tmpMappedFile.getFileFromOffset()
                             && offset < tmpMappedFile.getFileFromOffset() + this.mappedFileSize) {
@@ -506,16 +520,20 @@ public class MappedFileQueue {
                     }
                 }
 
+                // 如果找不到指定偏移量的映射文件，但配置为返回第一个映射文件，则返回第一个映射文件
                 if (returnFirstOnNotFound) {
                     return firstMappedFile;
                 }
             }
         } catch (Exception e) {
+            // 捕获并记录异常
             log.error("findMappedFileByOffset Exception", e);
         }
 
+        // 如果找不到映射文件或发生异常，返回null
         return null;
     }
+
 
     public MappedFile getFirstMappedFile() {
         MappedFile mappedFileFirst = null;
