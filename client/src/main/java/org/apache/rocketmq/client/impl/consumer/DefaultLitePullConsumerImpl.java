@@ -845,7 +845,9 @@ public class DefaultLitePullConsumerImpl implements MQConsumerInner {
                     } else {
                         subscriptionData = FilterAPI.buildSubscriptionData(topic, SubscriptionData.SUB_ALL);
                     }
-
+                    /**
+                     * 向broker拉取消息
+                     * */
                     PullResult pullResult = pull(messageQueue, subscriptionData, offset, defaultLitePullConsumer.getPullBatchSize());
                     if (this.isCancelled() || processQueue.isDropped()) {
                         return;
@@ -873,7 +875,9 @@ public class DefaultLitePullConsumerImpl implements MQConsumerInner {
                     pullDelayTimeMills = pullTimeDelayMillsWhenException;
                     log.error("An error occurred in pull message process.", e);
                 }
-
+                /**
+                 * 不断定时执行来轮询全部queue
+                 * */
                 if (!this.isCancelled()) {
                     scheduledThreadPoolExecutor.schedule(this, pullDelayTimeMills, TimeUnit.MILLISECONDS);
                 } else {

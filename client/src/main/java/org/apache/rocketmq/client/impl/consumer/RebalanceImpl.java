@@ -216,6 +216,12 @@ public abstract class RebalanceImpl {
      * 遍历该消费者的订阅的topic，执行重平衡
      */
     public void doRebalance(final boolean isOrder) {
+        /**
+         * key: topic
+         * TODO RocketMQ是支持一个消费组订阅多个topic，需要保证组内的消费者订阅的topic都必须一致，否则就会出现订阅的topic被覆盖的情况
+         * 参考 RocketMQ 消费者订阅topic问题
+         * <href>https://juejin.cn/post/7089788861915594766</href>
+         * */
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
             for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
