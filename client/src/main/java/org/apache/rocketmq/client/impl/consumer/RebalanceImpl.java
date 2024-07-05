@@ -160,6 +160,9 @@ public abstract class RebalanceImpl {
         return false;
     }
 
+    /**
+     * 确保消费者在处理消息时，同一时刻只有一个消费者能够获取到某个MessageQueue的锁，避免多个消费者同时处理同一个消息
+     * */
     public void lockAll() {
         //按brokerName分组
         HashMap<String, Set<MessageQueue>> brokerMqs = this.buildProcessQueueTableByBrokerName();
@@ -283,9 +286,7 @@ public abstract class RebalanceImpl {
                 if (mqSet != null && cidAll != null) {
                     List<MessageQueue> mqAll = new ArrayList<MessageQueue>();
                     mqAll.addAll(mqSet);
-                    //对cidAll、mqAll进行排序。这一步很重要，同一个消费
-                    //组内看到的视图应保持一致，确保同一个消费队列不会被多个消费者
-                    //分配
+                    //对cidAll、mqAll进行排序。这一步很重要，同一个消费组内看到的视图应保持一致，确保同一个消费队列不会被多个消费者分配
                     Collections.sort(mqAll);
                     Collections.sort(cidAll);
                     AllocateMessageQueueStrategy strategy = this.allocateMessageQueueStrategy;
@@ -343,6 +344,7 @@ public abstract class RebalanceImpl {
      * 对比拉取的新队列列表list1、消费者端已经存在的旧队列列表list2，
      * list2中的某个队列，在list1不存在，队列状态dropped = true && 移除队列
      * list1 中存在的某个队列，在list2中不存在，更新processQueueTable && 生成新的pullRequest 并更新 pullRequestQueue
+     *
      * @return true if changed
      *
      * */

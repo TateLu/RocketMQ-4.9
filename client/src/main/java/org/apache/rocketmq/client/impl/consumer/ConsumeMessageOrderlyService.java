@@ -43,7 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.*;
 
-//书签 顺序消息 实现类
+
 /**
  * 有start shutdown方法
  * */
@@ -88,11 +88,12 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("ConsumeMessageScheduledThread_"));
     }
-    //书签 顺序消息 加锁
+    //书签 顺序消息 服务启动 加锁
     public void start() {
         //集群模式
         if (MessageModel.CLUSTERING.equals(ConsumeMessageOrderlyService.this.defaultMQPushConsumerImpl.messageModel())) {
-            //定时任务，即该消费者要顺序消息，将对应的队列每20s加锁一次
+            //1 定时任务，即该消费者要顺序消息，将自己的队列每20s加锁一次
+            //2 确保消费者在处理消息时，同一时刻只有一个消费者能够获取到某个MessageQueue的锁，避免多个消费者同时处理同一个消息
             this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
@@ -428,8 +429,9 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                 log.warn("run, the message queue not be able to consume, because it's dropped. {}", this.messageQueue);
                 return;
             }
-            //获取锁对象
+            //获取队列的锁
             final Object objLock = messageQueueLock.fetchLockObject(this.messageQueue);
+            //书签 顺序消息 消费消息
             //加锁，保证只有一个线程消费
             synchronized (objLock) {
                 if (MessageModel.BROADCASTING.equals(ConsumeMessageOrderlyService.this.defaultMQPushConsumerImpl.messageModel())
