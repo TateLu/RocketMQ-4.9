@@ -26,23 +26,24 @@ import java.util.List;
  */
 public class AllocateMessageQueueAveragely extends AbstractAllocateMessageQueueStrategy {
 
+
     /**
-     * Allocating by consumer id
+     * 根据消费者组和当前消费者ID，从所有MessageQueue中分配指定数量的MessageQueue给当前消费者。
+     * 分配逻辑确保每个消费者得到公平的份额，且同一消费者组内的消费者不会互相争夺相同的MessageQueue。
      *
-     * @param consumerGroup current consumer group
-     * @param currentCID current consumer id
-     * @param mqAll message queue set in current topic
-     * @param cidAll consumer set in current consumer group
-     * @return The allocate result of given strategy
+     * @param consumerGroup 消费者组ID，用于标识同一组内的消费者。
+     * @param currentCID 当前消费者ID，用于唯一标识当前消费者。
+     * @param mqAll 所有可用的MessageQueue列表。
+     * @param cidAll 所有消费者ID的列表，用于确定消费者顺序和分配逻辑。
+     * @return 分配给当前消费者的MessageQueue列表。
      */
     @Override
-    public List<MessageQueue> allocate(String consumerGroup, String currentCID, List<MessageQueue> mqAll,
-        List<String> cidAll) {
-
+    public List<MessageQueue> allocate(String consumerGroup, String currentCID, List<MessageQueue> mqAll, List<String> cidAll) {
         List<MessageQueue> result = new ArrayList<MessageQueue>();
         if (!check(consumerGroup, currentCID, mqAll, cidAll)) {
             return result;
         }
+        /* 查找当前消费者ID在所有消费者ID列表中的索引，用于计算分配起点。 */
         /**implementation*/
         int index = cidAll.indexOf(currentCID);
         int mod = mqAll.size() % cidAll.size();
@@ -50,12 +51,15 @@ public class AllocateMessageQueueAveragely extends AbstractAllocateMessageQueueS
             mqAll.size() <= cidAll.size() ? 1 : (mod > 0 && index < mod ? mqAll.size() / cidAll.size()
                 + 1 : mqAll.size() / cidAll.size());
         int startIndex = (mod > 0 && index < mod) ? index * averageSize : index * averageSize + mod;
+        /* 计算当前消费者实际能分配到的MessageQueue数量。 */
         int range = Math.min(averageSize, mqAll.size() - startIndex);
+        /* 根据起始索引和实际数量，从所有MessageQueue中分配给当前消费者。 */
         for (int i = 0; i < range; i++) {
             result.add(mqAll.get((startIndex + i) % mqAll.size()));
         }
         return result;
     }
+
 
     @Override
     public String getName() {
