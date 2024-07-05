@@ -251,6 +251,7 @@ public abstract class RebalanceImpl {
         switch (messageModel) {
             //广播模式
             case BROADCASTING: {
+                //拿到topic的全部队列
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
                 if (mqSet != null) {
                     boolean changed = this.updateProcessQueueTableInRebalance(topic, mqSet, isOrder);
@@ -332,13 +333,12 @@ public abstract class RebalanceImpl {
         }
     }
 
-    //书签 消费者 重平衡 updateProcessQueueTableInRebalance
+    //书签 消费者 重平衡 更新PullRequest列表
     /**
      * @param mqSet 给当期消费者新分配的队列
      *
-     * 对比拉取的新队列列表list1、消费者端已经存在的旧队列列表list2，
-     * list2中的某个队列，在list1不存在，队列状态dropped = true && 移除队列
-     * list1 中存在的某个队列，在list2中不存在，更新processQueueTable && 生成新的pullRequest 并更新 pullRequestQueue
+     * 1 遍历当前的队列集合，移除不属于当前消费者的队列
+     * 2 遍历新分配的队列集合，新加入的队列加入 {@link PullRequest} , 拉取消息
      *
      * @return true if changed
      *
@@ -346,7 +346,7 @@ public abstract class RebalanceImpl {
     private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> mqSet, final boolean isOrder) {
         boolean changed = false;
 
-        /**遍历当前的队列缓存，移除被另外分配的队列*/
+        /** 1 遍历当前的队列集合，移除不属于当前消费者的队列*/
         Iterator<Entry<MessageQueue, ProcessQueue>> it = this.processQueueTable.entrySet().iterator();
         while (it.hasNext()) {
             Entry<MessageQueue, ProcessQueue> next = it.next();
@@ -380,7 +380,7 @@ public abstract class RebalanceImpl {
             }
         }
 
-        /**遍历新分配的队列列表，筛选后的队列加入 {@link PullRequest} , 拉取消息*/
+        /**2 遍历新分配的队列集合，新加入的队列加入 {@link PullRequest} , 拉取消息*/
         List<PullRequest> pullRequestList = new ArrayList<PullRequest>();
         for (MessageQueue mq : mqSet) {
             if (!this.processQueueTable.containsKey(mq)) {
