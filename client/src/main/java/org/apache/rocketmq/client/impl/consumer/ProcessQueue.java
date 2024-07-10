@@ -50,7 +50,7 @@ public class ProcessQueue {
     /**读写锁，控制多线程并发修改msgTreeMap、msgTree MapTemp*/
     private final ReadWriteLock treeMapLock = new ReentrantReadWriteLock();
 
-    /**消息存储容器，键为消息在ConsumeQueue中的偏移量。*/
+    /**消息存储容器，key: 消息在ConsumeQueue中的offset value: 消息体。*/
     private final TreeMap<Long, MessageExt> msgTreeMap = new TreeMap<Long, MessageExt>();
     private final AtomicLong msgCount = new AtomicLong();
     private final AtomicLong msgSize = new AtomicLong();
