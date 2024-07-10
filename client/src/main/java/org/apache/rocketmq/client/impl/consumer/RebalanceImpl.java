@@ -161,7 +161,7 @@ public abstract class RebalanceImpl {
     }
 
     /**
-     * 确保消费者在处理消息时，同一时刻只有一个消费者能够获取到某个MessageQueue的锁，避免多个消费者同时处理同一个消息
+     * 确保消费者在处理消息时，同一时刻只有一个消费者能够获取到某个MessageQueue的锁，避免多个消费者同时处理同一个消息队列
      * */
     public void lockAll() {
         //按brokerName分组

@@ -202,7 +202,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         this.offsetStore = offsetStore;
     }
 
-    //书签 消费者 拉取消息
+    //书签 消费者 向broker拉取消息
     /**
      *
      * 拉取消息的具体实现，封装、发送请求
@@ -351,7 +351,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
                                 /**
                                  *
-                                 * 消费消息，提交到线程池，区分2个实现(都会提交到线程池)
+                                 * 书签 消费者 消费消息 提交到线程池，区分并发消息、顺序消息
                                  *
                                  * 1 concurrently {@link ConsumeMessageConcurrentlyService#submitConsumeRequest(List, ProcessQueue, MessageQueue, boolean)}
                                  * 2 orderly {@link ConsumeMessageOrderlyService#submitConsumeRequest(List, ProcessQueue, MessageQueue, boolean)}
@@ -545,34 +545,55 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         log.info("resume this consumer, {}", this.defaultMQPushConsumer.getConsumerGroup());
     }
 
+
+    /**
+     * 将消息发送回服务端，用于重试消费。
+     * 当消息消费失败或需要延迟消费时，可以调用此方法将消息发送回服务端，以便在指定的延迟时间后重新消费。
+     *
+     * @param msg 要发送回的服务端的消息对象。
+     * @param delayLevel 延迟级别，决定消息重新消费的延迟时间。
+     * @param brokerName 消息原本的Broker名称，如果为null，则从消息对象中解析。
+     * @throws RemotingException 远程通信异常。
+     * @throws MQBrokerException 代理异常。
+     * @throws InterruptedException 线程中断异常。
+     * @throws MQClientException MQ客户端异常。
+     */
     public void sendMessageBack(MessageExt msg, int delayLevel, final String brokerName)
         throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
         try {
+            // 根据brokerName获取Broker的地址，如果brokerName为null，则从消息中解析地址。
             String brokerAddr = (null != brokerName) ? this.mQClientFactory.findBrokerAddressInPublish(brokerName)
                 : RemotingHelper.parseSocketAddressAddr(msg.getStoreHost());
+            // 调用MQClientAPIImpl的consumerSendMessageBack方法，将消息发送回Broker。
             this.mQClientFactory.getMQClientAPIImpl().consumerSendMessageBack(brokerAddr, brokerName, msg,
                 this.defaultMQPushConsumer.getConsumerGroup(), delayLevel, 5000, getMaxReconsumeTimes());
         } catch (Exception e) {
+            // 记录发送回消息的异常信息。
             log.error("sendMessageBack Exception, " + this.defaultMQPushConsumer.getConsumerGroup(), e);
-
+            // 构造新的消息对象，用于重试消费。
             Message newMsg = new Message(MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup()), msg.getBody());
-
+            // 设置新的消息的起源消息ID。
             String originMsgId = MessageAccessor.getOriginMessageId(msg);
             MessageAccessor.setOriginMessageId(newMsg, UtilAll.isBlank(originMsgId) ? msg.getMsgId() : originMsgId);
-
+            // 保留原始消息的标志和属性。
             newMsg.setFlag(msg.getFlag());
             MessageAccessor.setProperties(newMsg, msg.getProperties());
+            // 设置新的消息的重试主题、重试次数和最大重试次数。
             MessageAccessor.putProperty(newMsg, MessageConst.PROPERTY_RETRY_TOPIC, msg.getTopic());
             MessageAccessor.setReconsumeTime(newMsg, String.valueOf(msg.getReconsumeTimes() + 1));
             MessageAccessor.setMaxReconsumeTimes(newMsg, String.valueOf(getMaxReconsumeTimes()));
+            // 清除事务准备属性，因为重试消息不需要事务处理。
             MessageAccessor.clearProperty(newMsg, MessageConst.PROPERTY_TRANSACTION_PREPARED);
+            // 根据重试次数设置消息的延迟级别。
             newMsg.setDelayTimeLevel(3 + msg.getReconsumeTimes());
-
+            // 使用默认的生产者发送新的消息。
             this.mQClientFactory.getDefaultMQProducer().send(newMsg);
         } finally {
+            // 移除消息主题中的命名空间，确保主题的通用性。
             msg.setTopic(NamespaceUtil.withoutNamespace(msg.getTopic(), this.defaultMQPushConsumer.getNamespace()));
         }
     }
+
 
     private int getMaxReconsumeTimes() {
         // default reconsume times: 16

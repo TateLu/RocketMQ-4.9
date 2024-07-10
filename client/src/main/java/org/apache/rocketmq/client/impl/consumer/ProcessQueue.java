@@ -197,38 +197,61 @@ public class ProcessQueue {
         return 0;
     }
 
+    /**
+     * 删除消息方法
+     *
+     * @param msgs 待删除的消息列表
+     * @return 删除给定消息后，最早位置的偏移量
+     */
     public long removeMessage(final List<MessageExt> msgs) {
+        // 初始化结果变量为-1，表示操作失败或无有效结果
         long result = -1;
+        // 获取当前时间，用于更新最后消费时间戳
         final long now = System.currentTimeMillis();
+
         try {
+            // 获取写锁，确保线程安全地修改消息树映射
             this.treeMapLock.writeLock().lockInterruptibly();
+            // 更新最后消费时间戳
             this.lastConsumeTimestamp = now;
             try {
+                // 如果消息树映射不为空
                 if (!msgTreeMap.isEmpty()) {
+                    // 更新队列最大偏移量，用于标记删除后的新起始位置
                     result = this.queueOffsetMax + 1;
+                    // 初始化已删除消息计数器
                     int removedCnt = 0;
+                    // 遍历待删除的消息列表
                     for (MessageExt msg : msgs) {
+                        // 从消息树映射中移除指定偏移量的消息
                         MessageExt prev = msgTreeMap.remove(msg.getQueueOffset());
+                        // 如果成功移除，调整已删除消息计数器和消息大小总和
                         if (prev != null) {
                             removedCnt--;
                             msgSize.addAndGet(0 - msg.getBody().length);
                         }
                     }
+                    // 更新消息总数，反映已删除的消息数量
                     msgCount.addAndGet(removedCnt);
 
+                    // 如果消息树映射仍不为空，更新结果变量为剩余最早消息的偏移量
                     if (!msgTreeMap.isEmpty()) {
                         result = msgTreeMap.firstKey();
                     }
                 }
             } finally {
+                // 释放写锁
                 this.treeMapLock.writeLock().unlock();
             }
         } catch (Throwable t) {
+            // 记录删除消息过程中出现的异常
             log.error("removeMessage exception", t);
         }
 
+        // 返回删除操作后的新起始位置的偏移量
         return result;
     }
+
 
     public TreeMap<Long, MessageExt> getMsgTreeMap() {
         return msgTreeMap;

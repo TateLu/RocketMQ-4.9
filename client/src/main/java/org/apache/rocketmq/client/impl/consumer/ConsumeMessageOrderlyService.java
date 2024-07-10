@@ -203,6 +203,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
         return result;
     }
 
+    //书签 消费者 顺序消息
     @Override
     public void submitConsumeRequest(
         final List<MessageExt> msgs,
