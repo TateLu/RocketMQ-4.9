@@ -668,6 +668,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 if (this.defaultMQPushConsumer.getOffsetStore() != null) {
                     this.offsetStore = this.defaultMQPushConsumer.getOffsetStore();
                 } else {
+                    // 根据消费者的消息模型选择不同的偏移量存储方式
                     switch (this.defaultMQPushConsumer.getMessageModel()) {
                         //广播模式，消息消费进度存储到消费者本地
                         case BROADCASTING:
@@ -677,14 +678,16 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                         case CLUSTERING:
                             this.offsetStore = new RemoteBrokerOffsetStore(this.mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup());
                             break;
+                        // 默认情况，不处理其他情况
                         default:
                             break;
                     }
+
                     this.defaultMQPushConsumer.setOffsetStore(this.offsetStore);
                 }
                 this.offsetStore.load();
 
-                //书签 消费者 顺序消息 并发消息
+                //书签 消费者 初始化 顺序、并发消息service
                 if (this.getMessageListenerInner() instanceof MessageListenerOrderly) {
                     this.consumeOrderly = true;
                     this.consumeMessageService = new ConsumeMessageOrderlyService(this,

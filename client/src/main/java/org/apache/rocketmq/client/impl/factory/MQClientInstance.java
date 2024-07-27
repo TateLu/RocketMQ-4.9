@@ -217,6 +217,7 @@ public class MQClientInstance {
         return mqList;
     }
 
+    //书签 生产者 启动
     public void start() throws MQClientException {
 
         synchronized (this) {
@@ -251,9 +252,9 @@ public class MQClientInstance {
                     /** 重平衡 {@link RebalanceService}*/
                     this.rebalanceService.start();
 
-                    // Start push service
                     /**
                      * 这里再次调用了DefaultMQProducerImpl().start()方法，这TM不死循环了吗？
+                     *
                      * 不会的，因为他传递了false，false再DefaultMQProducerImpl().start()方法里不会再次调用mQClientFactory.start();
                      * 但是这也重复执行了两次DefaultMQProducerImpl().start()方法里的其他逻辑，不知道为啥这么搞，没看懂。
                      */
@@ -271,17 +272,21 @@ public class MQClientInstance {
         }
     }
 
-    /**
-     * a scheduled task at fixed rate
-     *
-     * 1.fetch nameserver address
-     * 2.topic route
-     * 3.heart beat to broker
-     * 4.persist All Consumer Offset
-     * */
-    private void startScheduledTask() {
-        if (null == this.clientConfig.getNamesrvAddr()) {
 
+    /**
+     * 书签 客户端 启动定时任务。
+     *
+     * 本方法负责初始化和调度一系列定时任务，这些任务定期执行以维持客户端的正常运行。
+     * 包括但不限于：
+     * 1. 更新NameServer地址。
+     * 2. 从NameServer获取并更新Topic的路由信息。
+     * 3. 发送心跳到所有Broker。
+     * 4. 持久化所有Consumer的消费位点。
+     * 5. 调整线程池大小。
+     */
+    private void startScheduledTask() {
+        // 当NamesrvAddr为空时，定时尝试从MQ服务端获取NameServer地址
+        if (null == this.clientConfig.getNamesrvAddr()) {
             /**
              * 只用了单线程的线程池，因为每个线程执行都用try-catch包住，很小概率线程会崩溃 && 每个任务很快
              *  所以只用单线程即可
@@ -299,6 +304,7 @@ public class MQClientInstance {
             }, 1000 * 10, 1000 * 60 * 2, TimeUnit.MILLISECONDS);
         }
 
+        // 定时从NameServer获取并更新所有Topic的路由信息
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -311,8 +317,9 @@ public class MQClientInstance {
             }
         }, 10, this.clientConfig.getPollNameServerInterval(), TimeUnit.MILLISECONDS);
 
+        // 定时发送心跳到所有Broker，并清理离线的Broker
         /**
-         * heart beat
+         * 心跳任务
          * */
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
@@ -327,6 +334,7 @@ public class MQClientInstance {
             }
         }, 1000, this.clientConfig.getHeartbeatBrokerInterval(), TimeUnit.MILLISECONDS);
 
+        // 定时持久化所有Consumer的消费位点
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -339,6 +347,7 @@ public class MQClientInstance {
             }
         }, 1000 * 10, this.clientConfig.getPersistConsumerOffsetInterval(), TimeUnit.MILLISECONDS);
 
+        // 定时调整线程池大小
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -351,6 +360,7 @@ public class MQClientInstance {
             }
         }, 1, 1, TimeUnit.MINUTES);
     }
+
 
     public String getClientId() {
         return clientId;

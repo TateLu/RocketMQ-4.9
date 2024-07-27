@@ -274,7 +274,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
     /**
      *
-     *书签 消费者 顺序消费 处理消费结果
+     *书签 消费者 顺序消息 处理消费结果
      *
      * @param msgs 消息列表。
      * @param status 消费状态。

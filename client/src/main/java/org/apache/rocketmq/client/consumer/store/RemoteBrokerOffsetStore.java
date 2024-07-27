@@ -16,13 +16,6 @@
  */
 package org.apache.rocketmq.client.consumer.store;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 import org.apache.rocketmq.client.exception.MQBrokerException;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.impl.FindBrokerResult;
@@ -30,11 +23,19 @@ import org.apache.rocketmq.client.impl.factory.MQClientInstance;
 import org.apache.rocketmq.client.log.ClientLogger;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.UtilAll;
-import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.common.protocol.header.QueryConsumerOffsetRequestHeader;
 import org.apache.rocketmq.common.protocol.header.UpdateConsumerOffsetRequestHeader;
+import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.remoting.exception.RemotingException;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 记录每个队列的消费偏移量
@@ -112,40 +113,61 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
     }
 
     @Override
+    /**
+     * 持久化所有消息队列的消费位点。
+     *
+     * 此方法用于将当前消费者实例中所有消息队列的消费位点更新到服务器，以确保在消费者重启或发生故障时，
+     * 可以从上次断开的地方继续消费。它首先检查是否有需要更新的位点，然后尝试更新每个相关的消息队列的消费位点。
+     * 如果某个消息队列不再被使用，它将从位点表中移除。
+     *
+     * @param mqs 需要持久化的消息队列集合。
+     */
     public void persistAll(Set<MessageQueue> mqs) {
+        // 如果传入的消息队列集为空或为空集，直接返回，不进行任何操作
         if (null == mqs || mqs.isEmpty())
             return;
 
+        // 用于存储不再使用的消息队列
         final HashSet<MessageQueue> unusedMQ = new HashSet<MessageQueue>();
 
+        // 遍历当前消费者实例中的所有消息队列及其对应的消费位点
         for (Map.Entry<MessageQueue, AtomicLong> entry : this.offsetTable.entrySet()) {
             MessageQueue mq = entry.getKey();
             AtomicLong offset = entry.getValue();
+            // 如果位点不为空
             if (offset != null) {
+                // 如果当前消息队列仍在使用中，则尝试更新其消费位点到服务器
                 if (mqs.contains(mq)) {
                     try {
+                        // 更新消费位点到服务器
                         this.updateConsumeOffsetToBroker(mq, offset.get());
+                        // 日志记录更新操作
                         log.info("[persistAll] Group: {} ClientId: {} updateConsumeOffsetToBroker {} {}",
-                            this.groupName,
-                            this.mQClientFactory.getClientId(),
-                            mq,
-                            offset.get());
+                                this.groupName,
+                                this.mQClientFactory.getClientId(),
+                                mq,
+                                offset.get());
                     } catch (Exception e) {
+                        // 记录更新过程中的异常
                         log.error("updateConsumeOffsetToBroker exception, " + mq.toString(), e);
                     }
                 } else {
+                    // 如果当前消息队列不再使用，将其添加到unusedMQ集合中
                     unusedMQ.add(mq);
                 }
             }
         }
 
+        // 如果有不再使用的消息队列，则移除它们 from offsetTable
         if (!unusedMQ.isEmpty()) {
             for (MessageQueue mq : unusedMQ) {
                 this.offsetTable.remove(mq);
+                // 日志记录移除操作
                 log.info("remove unused mq, {}, {}", mq, this.groupName);
             }
         }
     }
+
 
     @Override
     public void persist(MessageQueue mq) {
