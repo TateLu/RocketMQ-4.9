@@ -938,7 +938,7 @@ public class CommitLog {
         return -1;
     }
 
-    //书签 broker commitlog 读取消息
+
     /**
      * 根据偏移量与消息长度查找消息。首先根据偏移找到文件所在的
      * 物理偏移量，然后用offset与文件长度取余，得到在文件内的偏移
@@ -946,13 +946,31 @@ public class CommitLog {
      * 查找消息，则首先找到文件内的偏移量，然后尝试读取4字节，获取消
      * 息的实际长度，最后读取指定字节。
      * */
+    /**
+     * 根据给定的偏移量和大小从 CommitLog 中获取消息。
+     *
+     * 此方法用于从 CommitLog 中定位并返回指定偏移量和大小的消息。它首先根据偏移量查找对应的 MappedFile，
+     * 然后在该 MappedFile 中根据偏移量和大小选择并返回一个映射的缓冲区。
+     *
+     * @param offset 消息在 CommitLog 中的偏移量。
+     * @param size 要获取的消息大小。
+     * @return 返回包含指定消息的映射缓冲区，如果找不到则返回 null。
+     */
     public SelectMappedBufferResult getMessage(final long offset, final int size) {
+        // 获取配置的MappedFileSizeCommitLog的大小
         int mappedFileSize = this.defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog();
+
+        // 根据偏移量查找对应的MappedFile，如果偏移量为0，则考虑只查找第一个MappedFile
         MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset, offset == 0);
+
         if (mappedFile != null) {
+            // 计算消息在MappedFile中的位置
             int pos = (int) (offset % mappedFileSize);
+            // 从MappedFile中选择并返回指定位置和大小的映射缓冲区
             return mappedFile.selectMappedBuffer(pos, size);
         }
+
+        // 如果找不到对应的MappedFile，则返回null
         return null;
     }
 

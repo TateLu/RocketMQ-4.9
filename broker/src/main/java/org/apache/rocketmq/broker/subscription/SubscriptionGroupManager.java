@@ -16,25 +16,26 @@
  */
 package org.apache.rocketmq.broker.subscription;
 
-import java.util.Iterator;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.BrokerPathConfigHelper;
 import org.apache.rocketmq.common.ConfigManager;
 import org.apache.rocketmq.common.DataVersion;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.constant.LoggerName;
+import org.apache.rocketmq.common.subscription.SubscriptionGroupConfig;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
-import org.apache.rocketmq.common.subscription.SubscriptionGroupConfig;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
+
+import java.util.Iterator;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public class SubscriptionGroupManager extends ConfigManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
 
-    private final ConcurrentMap<String, SubscriptionGroupConfig> subscriptionGroupTable =
+    private final ConcurrentMap<String/*groupName*/, SubscriptionGroupConfig> subscriptionGroupTable =
         new ConcurrentHashMap<String, SubscriptionGroupConfig>(1024);
     private final DataVersion dataVersion = new DataVersion();
     private transient BrokerController brokerController;
@@ -117,21 +118,38 @@ public class SubscriptionGroupManager extends ConfigManager {
         }
     }
 
+    /**
+     * 根据组ID查找订阅组配置。
+     * 如果订阅组配置不存在且允许自动创建订阅组，或者组ID是系统保留的组，则会自动创建一个新的订阅组配置。
+     *
+     * @param group 订阅组的组ID。
+     * @return 找到的订阅组配置。
+     */
     public SubscriptionGroupConfig findSubscriptionGroupConfig(final String group) {
+        // 尝试从订阅组表中直接获取订阅组配置
         SubscriptionGroupConfig subscriptionGroupConfig = this.subscriptionGroupTable.get(group);
+        // 如果订阅组配置不存在
         if (null == subscriptionGroupConfig) {
+            // 检查是否允许自动创建订阅组，或者当前组ID是系统保留的组
             if (brokerController.getBrokerConfig().isAutoCreateSubscriptionGroup() || MixAll.isSysConsumerGroup(group)) {
+                // 创建一个新的订阅组配置
                 subscriptionGroupConfig = new SubscriptionGroupConfig();
+                // 设置组ID
                 subscriptionGroupConfig.setGroupName(group);
+                // 尝试将新的订阅组配置放入订阅组表中，如果成功则表示该订阅组是新创建的
                 SubscriptionGroupConfig preConfig = this.subscriptionGroupTable.putIfAbsent(group, subscriptionGroupConfig);
+                // 如果是新创建的订阅组，则记录日志
                 if (null == preConfig) {
                     log.info("auto create a subscription group, {}", subscriptionGroupConfig.toString());
                 }
+                // 更新数据版本号
                 this.dataVersion.nextVersion();
+                // 持久化订阅组配置
                 this.persist();
             }
         }
 
+        // 返回找到或新创建的订阅组配置
         return subscriptionGroupConfig;
     }
 

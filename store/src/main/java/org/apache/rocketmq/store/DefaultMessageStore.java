@@ -17,40 +17,8 @@
 package org.apache.rocketmq.store;
 
 import io.openmessaging.storage.dledger.entry.DLedgerEntry;
-import java.io.File;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.net.Inet6Address;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileLock;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.apache.commons.lang3.StringUtils;
-import org.apache.rocketmq.common.BrokerConfig;
-import org.apache.rocketmq.common.MixAll;
-import org.apache.rocketmq.common.ServiceThread;
-import org.apache.rocketmq.common.SystemClock;
-import org.apache.rocketmq.common.ThreadFactoryImpl;
-import org.apache.rocketmq.common.UtilAll;
+import org.apache.rocketmq.common.*;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.message.MessageConst;
 import org.apache.rocketmq.common.message.MessageDecoder;
@@ -70,6 +38,20 @@ import org.apache.rocketmq.store.index.IndexService;
 import org.apache.rocketmq.store.index.QueryOffsetResult;
 import org.apache.rocketmq.store.schedule.ScheduleMessageService;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.net.Inet6Address;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileLock;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class DefaultMessageStore implements MessageStore {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -557,9 +539,29 @@ public class DefaultMessageStore implements MessageStore {
         return commitLog;
     }
 
+
+
+    /**
+     *
+     *
+     * 从指定的消费组、主题、队列中获取消息。
+     *
+     * 此方法用于从指定的消费组、主题、队列中获取指定偏移量开始的一定数量的消息。它支持使用消息过滤器来进一步筛选消息。
+     * 这是对消息队列的消费者端的典型操作，用于拉取新消息或特定条件下的消息。
+     *
+     * @param group 消费组的标识，用于区分不同的消费群体。
+     * @param topic 消息的主题，用于对消息进行分类。
+     * @param queueId 消息队列的ID，每个主题可以有多个队列。
+     * @param offset 消息的偏移量，从这个位置开始获取消息。通常，偏移量是消息消费的标记，用于跟踪消费进度。
+     * @param maxMsgNums 最多获取的消息数量，用于限制单次拉取的消息量。
+     * @param messageFilter 消息过滤器，用于筛选符合特定条件的消息。只有通过过滤器的消息才会被返回。
+     * @return GetMessageResult 返回获取消息的结果，包括消息列表和其他相关信息。
+     */
+    //书签 broker ConsumerQueue 读取消息item p2
+    @Override
     public GetMessageResult getMessage(final String group, final String topic, final int queueId, final long offset,
-        final int maxMsgNums,
-        final MessageFilter messageFilter) {
+            final int maxMsgNums,
+            final MessageFilter messageFilter) {
         if (this.shutdown) {
             log.warn("message store has shutdown, so getMessage is forbidden");
             return null;
@@ -605,6 +607,7 @@ public class DefaultMessageStore implements MessageStore {
                 status = GetMessageStatus.OFFSET_OVERFLOW_BADLY;
                 nextBeginOffset = nextOffsetCorrection(offset, maxOffset);
             } else {
+                //书签 broker ConsumerQueue 读取消息item p3
                 SelectMappedBufferResult bufferConsumeQueue = consumeQueue.getIndexBuffer(offset);
                 if (bufferConsumeQueue != null) {
                     try {
@@ -660,31 +663,36 @@ public class DefaultMessageStore implements MessageStore {
 
                                 continue;
                             }
-
+                            //书签 broker commitlog 读取消息
+                            // 根据给定的偏移量和大小从提交日志中获取消息。
                             SelectMappedBufferResult selectResult = this.commitLog.getMessage(offsetPy, sizePy);
+                            // 如果没有获取到消息，则检查是否因为消息正在被移除。
                             if (null == selectResult) {
                                 if (getResult.getBufferTotalSize() == 0) {
                                     status = GetMessageStatus.MESSAGE_WAS_REMOVING;
                                 }
-
+                                // 更新下一个物理文件的起始偏移量并继续尝试。
                                 nextPhyFileStartOffset = this.commitLog.rollNextFile(offsetPy);
                                 continue;
                             }
-
+                            // 如果存在消息过滤器，并且获取的消息不匹配过滤条件。
                             if (messageFilter != null
                                 && !messageFilter.isMatchedByCommitLog(selectResult.getByteBuffer().slice(), null)) {
                                 if (getResult.getBufferTotalSize() == 0) {
                                     status = GetMessageStatus.NO_MATCHED_MESSAGE;
                                 }
+                                // 释放资源并继续尝试。
                                 // release...
                                 selectResult.release();
                                 continue;
                             }
-
+                            // 统计消息传输数量并添加到结果集中。
                             this.storeStatsService.getGetMessageTransferedMsgCount().add(1);
                             getResult.addMessage(selectResult);
+                            // 设置状态为找到消息，并重置下一个物理文件的起始偏移量。
                             status = GetMessageStatus.FOUND;
                             nextPhyFileStartOffset = Long.MIN_VALUE;
+
                         }
 
                         if (diskFallRecorded) {

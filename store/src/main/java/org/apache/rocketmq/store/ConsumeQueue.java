@@ -541,10 +541,10 @@ public class ConsumeQueue {
         }
     }
 
-    //书签 broker ConsumerQueue 读取消息item
+
     /**
      * 1 单个ConsumeQueue文件中默认包含30万个条目，单个文件的长度 为3×106×20字节，单个ConsumeQueue文件可以看作一个ConsumeQueue 条目的数组，其下标为ConsumeQueue的逻辑偏移量，消息消费进度存 储的偏移量即逻辑偏移量。
-     * 2 根据偏移量定位到具体的物理文件。通过将该偏 移量与物理文件的大小取模获取在该文件的偏移量，从偏移量开始连 续读取20个字节即可。
+     * 2 根据偏移量定位到具体的ConsumeQueue文件。通过将该偏 移量与物理文件的大小取模获取在该文件的偏移量，从偏移量开始连 续读取20个字节即可。
      * */
     /**
      * 根据起始索引获取索引缓冲区。
@@ -562,7 +562,7 @@ public class ConsumeQueue {
 
         // 检查偏移量是否在有效范围内
         if (offset >= this.getMinLogicOffset()) {
-            // 根据偏移量查找对应的映射文件
+            // 根据偏移量定位到具体的ConsumeQueue文件
             MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset);
             if (mappedFile != null) {
                 // 从映射文件中选择并返回相应的缓冲区
