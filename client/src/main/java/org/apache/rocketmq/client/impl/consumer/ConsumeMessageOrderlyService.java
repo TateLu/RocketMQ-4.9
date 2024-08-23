@@ -492,12 +492,10 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                 return;
             }
 
-            // 获取与消息队列关联的锁对象
-            // 获取队列的锁
+            // 获取这个队列的锁
             final Object objLock = messageQueueLock.fetchLockObject(this.messageQueue);
 
-            // 确保只有持有锁的线程才能执行消息消费逻辑
-            // 加锁，保证只有一个线程消费
+            // 加锁，保证只有一个线程，从队列拉取消息
             synchronized (objLock) {
                 // 如果是广播消费模式，或者消息队列被锁定且锁未过期，则开始尝试消费消息
                 if (MessageModel.BROADCASTING.equals(ConsumeMessageOrderlyService.this.defaultMQPushConsumerImpl.messageModel())
@@ -568,7 +566,6 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                                     log.warn("consumeMessage, the message queue not be able to consume, because it's dropped. {}", this.messageQueue);
                                     break;
                                 }
-                                // 执行消息监听器，实际消费消息
                                 // 消费消息 messageListener
                                 status = messageListener.consumeMessage(Collections.unmodifiableList(msgs), context);
                             } catch (Throwable e) {
